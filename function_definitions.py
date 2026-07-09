@@ -2,7 +2,7 @@ import numpy as np
 from skimage import measure, morphology, restoration, exposure
 from skimage.morphology import closing, disk, remove_small_objects
 from pathlib import Path
-from tqdm.auto import tqdm
+from tqdm import tqdm
 import tifffile
 from scipy.ndimage import median_filter
 import pandas as pd
@@ -191,3 +191,27 @@ def flag_noncircular(df: pd.DataFrame, thresholds: dict =DEFAULT_THRESHOLDS) -> 
     return df[(df["Circularity 1"] < thresholds["circ1"]) |
               (df["Circularity 2"] < thresholds["circ2"]) |
               (df["Eccentricity"] > thresholds["ecc"])]
+
+
+
+def visualize_events(population_name: str, image_index: int = 0, data_root: Path = Path(r".\data")):
+    img_paths = sorted((data_root/"cell_images"/population_name).rglob("*.ome.tif"))
+    cellpose_paths = sorted((data_root/"cellpose_masks"/population_name).rglob("*.npy"))
+    nucleus_paths = sorted((data_root/"nuclear_masks"/population_name).rglob("*.tif"))
+    sample_tiff = tifffile.imread(img_paths[image_index])
+    nuclear_mask = tifffile.imread(nucleus_paths[image_index])
+    cellpose_mask = np.load(cellpose_paths[image_index], allow_pickle=True).item()['masks']
+
+    dapi_channel = sample_tiff[4]
+
+    if nuclear_mask.ndim == 3:
+        nuclear_mask = nuclear_mask[0]
+
+    events_binary_mask = (nuclear_mask * cellpose_mask) > 0
+    events_mask = remove_small_labels(events_binary_mask, max_size=110, connectivity=1, relabel=True)
+
+    number_of_events = number_of_objects(events_mask)
+
+    dapi_channel = remove_overexposed_artifacts(median_filter(sample_tiff[4], size=3))
+
+    return dapi_channel, events_mask
