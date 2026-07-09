@@ -1,1 +1,5 @@
 *.csv
+*.ome.tif
+
+# Keep tracking the nuclear masks
+!*_mask.ome.tif
